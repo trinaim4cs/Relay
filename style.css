@@ -832,3 +832,497 @@ kbd {
     align-items: flex-start;
   }
 }
+
+/* ==========================================================================
+   Interactive In-Browser Simulator & Voice Controller
+   ========================================================================== */
+.sim-container {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  margin-top: 24px;
+  margin-bottom: 36px;
+}
+
+.sim-header {
+  padding: 12px 20px;
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.sim-title {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--fg);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sim-badge-active {
+  background: rgba(24, 119, 242, 0.15);
+  color: #1877F2;
+  border: 1px solid rgba(24, 119, 242, 0.3);
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+}
+
+/* Voice & Controller Bar */
+.sim-voice-bar {
+  padding: 18px 20px;
+  background-color: var(--card);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.sim-voice-primary-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.mic-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background-color: var(--primary);
+  color: var(--primary-fg);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 10px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(24, 119, 242, 0.25);
+}
+
+.mic-btn:hover {
+  background-color: var(--primary-hover);
+  transform: translateY(-1px);
+}
+
+.mic-btn.listening {
+  background-color: #FF3B30;
+  animation: pulseMic 1.2s infinite;
+}
+
+@keyframes pulseMic {
+  0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.6); }
+  70% { box-shadow: 0 0 0 12px rgba(255, 59, 48, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); }
+}
+
+.sim-input-wrap {
+  display: flex;
+  flex: 1;
+  min-width: 240px;
+  gap: 8px;
+}
+
+.sim-input {
+  flex: 1;
+  background-color: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  color: var(--fg);
+  outline: none;
+}
+.sim-input:focus {
+  border-color: var(--primary);
+}
+
+.sim-presets-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preset-label {
+  font-size: 12px;
+  color: var(--fg-muted);
+  font-weight: 500;
+}
+
+.preset-pill-btn {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border);
+  color: var(--fg);
+  font-size: 12px;
+  padding: 5px 12px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-pill-btn:hover {
+  border-color: var(--primary);
+  background-color: var(--card-hover);
+  color: var(--primary);
+}
+
+/* Simulated Desktop Canvas */
+.sim-desktop {
+  height: 380px;
+  background: #060911;
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  overflow: hidden;
+  padding: 16px;
+}
+
+[data-theme="light"] .sim-desktop {
+  background: #eef2f8;
+}
+
+/* Simulated Windows */
+.sim-app-window {
+  position: absolute;
+  background: #111726;
+  border: 1px solid #2d3748;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  transition: all 0.25s ease;
+  overflow: hidden;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="light"] .sim-app-window {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.sim-app-window.active {
+  z-index: 10;
+  border-color: #1877F2;
+  transform: scale(1);
+}
+
+.sim-app-window.inactive {
+  opacity: 0.45;
+  transform: scale(0.97);
+  z-index: 5;
+}
+
+.sim-app-titlebar {
+  background: #1e293b;
+  border-bottom: 1px solid #334155;
+  padding: 6px 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: #f1f5f9;
+}
+
+[data-theme="light"] .sim-app-titlebar {
+  background: #f1f5f9;
+  border-bottom-color: #e2e8f0;
+  color: #1e293b;
+}
+
+.sim-app-content {
+  padding: 14px;
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: #cbd5e1;
+  line-height: 1.6;
+  overflow: auto;
+}
+
+[data-theme="light"] .sim-app-content {
+  color: #334155;
+}
+
+/* UI Automation Focus Highlighter */
+.sim-focus-box {
+  position: absolute;
+  border: 2px solid #00C853;
+  background: rgba(0, 200, 83, 0.12);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 25;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: none;
+  box-shadow: 0 0 12px rgba(0, 200, 83, 0.4);
+}
+.sim-focus-box.visible {
+  display: block;
+}
+
+/* Simulated Taskbar */
+.sim-taskbar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 38px;
+  background: #0a0e1a;
+  border-top: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 12px;
+  z-index: 30;
+}
+
+[data-theme="light"] .sim-taskbar {
+  background: #e2e8f0;
+  border-top-color: #cbd5e1;
+}
+
+.sim-taskbar-apps {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.sim-taskbar-icon {
+  padding: 4px 10px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  color: var(--fg);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: var(--font-mono);
+  transition: all 0.15s ease;
+}
+.sim-taskbar-icon.running {
+  border-color: #1877F2;
+  background: rgba(24, 119, 242, 0.15);
+  color: #1877F2;
+}
+
+.sim-taskbar-tray {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--fg-muted);
+}
+
+/* Narration Output Banner */
+.sim-speech-banner {
+  padding: 16px 20px;
+  background-color: var(--bg-subtle);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.sim-waveform-box {
+  width: 36px;
+  height: 28px;
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 4px;
+  flex-shrink: 0;
+}
+
+.waveform-bar {
+  width: 2px;
+  height: 4px;
+  background: #1877F2;
+  border-radius: 2px;
+  transition: height 0.1s ease;
+}
+
+.sim-waveform-box.active .waveform-bar {
+  animation: audioWave 0.6s ease-in-out infinite alternate;
+}
+.sim-waveform-box.active .waveform-bar:nth-child(2) { animation-delay: 0.12s; }
+.sim-waveform-box.active .waveform-bar:nth-child(3) { animation-delay: 0.24s; }
+.sim-waveform-box.active .waveform-bar:nth-child(4) { animation-delay: 0.36s; }
+.sim-waveform-box.active .waveform-bar:nth-child(5) { animation-delay: 0.48s; }
+
+@keyframes audioWave {
+  0% { height: 4px; }
+  100% { height: 20px; }
+}
+
+.sim-voice-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: #1877F2;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.sim-speech-text {
+  font-size: 14px;
+  color: var(--fg);
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+/* 5-Stage Pipeline Stepper */
+.pipe-section {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pipe-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--fg-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 12px;
+}
+
+.pipe-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.pipe-card {
+  background-color: var(--bg-subtle);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+  transition: all 0.2s ease;
+}
+
+.pipe-card.active-step {
+  border-color: #00C853;
+  background-color: rgba(0, 200, 83, 0.08);
+}
+
+.pipe-badge {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--fg-muted);
+}
+.pipe-card.active-step .pipe-badge {
+  color: #00C853;
+}
+
+.pipe-card h4 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 4px 0 2px 0;
+  color: var(--fg);
+}
+
+.pipe-card p {
+  font-size: 11px;
+  color: var(--fg-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+/* Soundboard & Terminal Grid */
+.sim-footer-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background-color: var(--bg-subtle);
+}
+
+@media (max-width: 800px) {
+  .sim-footer-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.soundboard-col, .terminal-col {
+  padding: 16px 20px;
+}
+
+.soundboard-col {
+  border-right: 1px solid var(--border);
+}
+
+@media (max-width: 800px) {
+  .soundboard-col {
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+}
+
+.soundboard-btns {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.earcon-btn {
+  background-color: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--fg);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.15s ease;
+}
+
+.earcon-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.sim-terminal-log {
+  height: 120px;
+  background: #04070e;
+  border: 1px solid #1e293b;
+  border-radius: 6px;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #10b981;
+  overflow-y: auto;
+  line-height: 1.5;
+  margin-top: 10px;
+}
+
+.term-line {
+  margin-bottom: 3px;
+}
+
+.term-time {
+  color: #64748b;
+}
+
+.term-msg {
+  color: #a7f3d0;
+}

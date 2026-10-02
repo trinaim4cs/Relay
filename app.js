@@ -196,38 +196,206 @@
     if (waveformBox) waveformBox.classList.remove('active');
   }
 
-  // --- 4. COMMAND PRESETS & BEHAVIOR SUITE ---
+  // --- 4. HUD, SAFETY & UIA INSPECTOR HELPERS ---
+  function updateHudStatus(tag, transcriptText) {
+    const tagEl = document.getElementById('hudStatusTag');
+    const transEl = document.getElementById('hudTranscript');
+    if (tagEl && tag) tagEl.textContent = tag;
+    if (transEl && transcriptText) transEl.textContent = transcriptText;
+  }
+
+  function updateSafetyTier(isElevated) {
+    const tierEl = document.getElementById('hudSafetyTier');
+    if (!tierEl) return;
+    if (isElevated) {
+      tierEl.textContent = 'TIER 5 (ELEVATED)';
+      tierEl.classList.add('elevated');
+    } else {
+      tierEl.textContent = 'TIER 1 (SAFE)';
+      tierEl.classList.remove('elevated');
+    }
+  }
+
+  function renderUIAInspector(targetSelector, info = {}) {
+    const overlay = document.getElementById('uiaInspectorOverlay');
+    const badge = document.getElementById('uiaInspectorBadge');
+    const desktop = document.getElementById('win11Desktop');
+    if (!overlay || !desktop) return;
+
+    if (!state.uiaOverlayEnabled || !targetSelector) {
+      overlay.style.display = 'none';
+      return;
+    }
+
+    const target = document.querySelector(targetSelector);
+    if (!target) {
+      overlay.style.display = 'none';
+      return;
+    }
+
+    const dRect = desktop.getBoundingClientRect();
+    const tRect = target.getBoundingClientRect();
+
+    const top = tRect.top - dRect.top;
+    const left = tRect.left - dRect.left;
+    const width = tRect.width;
+    const height = tRect.height;
+
+    overlay.style.top = `${Math.max(2, top - 3)}px`;
+    overlay.style.left = `${Math.max(2, left - 3)}px`;
+    overlay.style.width = `${width + 6}px`;
+    overlay.style.height = `${height + 6}px`;
+    overlay.style.display = 'block';
+
+    if (badge) {
+      const typeStr = info.controlType || 'UIA_Element';
+      const nameStr = info.name || target.getAttribute('aria-label') || target.innerText?.slice(0, 18) || 'Item';
+      badge.textContent = `[${typeStr}: ${nameStr}]`;
+    }
+  }
+
+  // --- 5. WINDOW MANAGEMENT & APPS ---
+  function bringToFront(winEl) {
+    if (!winEl) return;
+    document.querySelectorAll('.win11-window').forEach(w => {
+      w.classList.remove('active');
+    });
+    winEl.classList.remove('minimized');
+    winEl.style.display = 'flex';
+    winEl.classList.add('active');
+  }
+
+  function updateTaskbarActive(appKey) {
+    const items = {
+      notepad: document.getElementById('tbAppNotepad'),
+      explorer: document.getElementById('tbAppExplorer'),
+      edge: document.getElementById('tbAppEdge'),
+      settings: document.getElementById('tbAppSettings'),
+    };
+    Object.keys(items).forEach(k => {
+      const el = items[k];
+      if (el) {
+        if (k === appKey) {
+          el.classList.add('running', 'active');
+        } else {
+          el.classList.remove('active');
+        }
+      }
+    });
+  }
+
+  function openNotepad() {
+    state.activeApp = 'notepad';
+    const win = document.getElementById('win11Notepad');
+    bringToFront(win);
+    updateTaskbarActive('notepad');
+    renderUIAInspector('#notepadEditor', {
+      controlType: 'UIA_EditControlTypeId',
+      name: 'Document Text Area',
+      automationId: 'txtNotepadEditor'
+    });
+    logTerminal("[UIA_INVOKE] Launched Microsoft Notepad via AppID: Microsoft.WindowsNotepad");
+    return win;
+  }
+
+  function openExplorer() {
+    state.activeApp = 'explorer';
+    const win = document.getElementById('win11Explorer');
+    bringToFront(win);
+    updateTaskbarActive('explorer');
+    renderUIAInspector('#fileRowReport', {
+      controlType: 'UIA_ListItemControlTypeId',
+      name: 'report-draft.docx',
+      automationId: 'lstFileItem_0'
+    });
+    logTerminal("[UIA_INVOKE] Launched Windows File Explorer. Focused folder: Documents");
+    return win;
+  }
+
+  function openEdge() {
+    state.activeApp = 'edge';
+    const win = document.getElementById('win11Edge');
+    bringToFront(win);
+    updateTaskbarActive('edge');
+    renderUIAInspector('#edgeHeading', {
+      controlType: 'UIA_HeadingControlTypeId',
+      name: 'Repository Headline',
+      automationId: 'h2RepoHeading'
+    });
+    logTerminal("[UIA_INVOKE] Launched Microsoft Edge. Navigated to https://github.com/trinaim4cs/Relay");
+    return win;
+  }
+
+  function openSettings() {
+    state.activeApp = 'settings';
+    const win = document.getElementById('win11Settings');
+    bringToFront(win);
+    updateTaskbarActive('settings');
+    renderUIAInspector('#settingsBtSwitch', {
+      controlType: 'UIA_ButtonControlTypeId',
+      name: 'Bluetooth Toggle Switch',
+      automationId: 'btnToggleBluetooth'
+    });
+    logTerminal("[UIA_INVOKE] Launched Windows 11 Settings. Navigated to Bluetooth & devices");
+    return win;
+  }
+
+  function typeIntoNotepad(textToType, callback) {
+    openNotepad();
+    const editor = document.getElementById('notepadEditor');
+    if (!editor) {
+      if (callback) callback();
+      return;
+    }
+    editor.innerHTML = '';
+    const str = textToType || "Meeting Notes - 12:45 PM\n1. RELAY Voice OS online.\n2. Closed-loop verification active.\n3. Zero mouse needed.";
+    let i = 0;
+    const typer = setInterval(() => {
+      if (i < str.length) {
+        const char = str[i];
+        if (char === '\n') {
+          editor.innerHTML += '<br/>';
+        } else {
+          editor.innerHTML += char;
+        }
+        i++;
+        if (i % 3 === 0) earcons.click();
+      } else {
+        clearInterval(typer);
+        editor.innerHTML += '<span class="typing-caret"></span>';
+        earcons.success();
+        logTerminal(`[UIA_VERIFIED] SendInput completed. Text verified in buffer (${str.length} chars).`);
+        if (callback) callback();
+      }
+    }, 28);
+  }
+
+  // Expose global methods for verification tests and automation
+  window.openNotepad = openNotepad;
+  window.openExplorer = openExplorer;
+  window.openEdge = openEdge;
+  window.openSettings = openSettings;
+  window.typeIntoNotepad = typeIntoNotepad;
+  window.renderUIAInspector = renderUIAInspector;
+  window.earcons = earcons;
+
+  // --- 6. COMMAND PRESETS & BEHAVIOR SUITE ---
   const COMMAND_PRESETS = [
     {
       id: 'notepad_write',
       text: "open Notepad and write hello world",
       app: 'notepad',
-      spoken: "Opening Notepad. Document ready. Typed: hello world. Changes verified.",
+      spoken: "Opening Notepad. Document ready. Typed: Meeting Notes. Changes verified.",
       action(cb) {
-        setActiveApp('notepad');
-        positionFocusBox('#simNotepadContent');
-        const content = document.getElementById('simNotepadContent');
-        if (content) {
-          content.innerHTML = '<span style="color:#aaa;">// Typing via SendInput API...</span><br/>';
-          let str = "hello world from RELAY voice OS!";
-          let i = 0;
-          const typer = setInterval(() => {
-            if (i < str.length) {
-              content.innerHTML += str[i];
-              i++;
-              if (i % 4 === 0) earcons.click();
-            } else {
-              clearInterval(typer);
-              content.innerHTML += '<br/><span style="color:#4caf50;">[VERIFIED: Document content observed]</span>';
-              earcons.success();
-              if (cb) cb();
-            }
-          }, 35);
-        } else if (cb) cb();
+        updateHudStatus('RELAY VOICE OS • UIA INVOKE', 'Typing text via SendInput API...');
+        typeIntoNotepad("Meeting Notes - Team Relay\n1. Windows 11 replica online.\n2. Sub-200ms voice control verified.\n3. Zero mouse needed.", () => {
+          updateHudStatus('RELAY VOICE OS • VERIFIED', 'Notepad document content confirmed in memory.');
+          if (cb) cb();
+        });
       },
       steps: [
         { label: "Speech In", detail: "faster-whisper transcribed audio clip in 180 ms" },
-        { label: "Compound Intent", detail: "Split: [open_app(Notepad), type('hello world')]" },
+        { label: "Compound Intent", detail: "Split: [open_app(Notepad), type('Meeting Notes')]" },
         { label: "UI Automation", detail: "Notepad window launched; SendInput text injected" },
         { label: "Verification", detail: "Post-condition: IUIAutomationTextPattern confirmed text" },
         { label: "Narration", detail: "Spoken feedback delivered via Piper neural TTS" }
@@ -237,11 +405,15 @@
       id: 'screen_read',
       text: "read the screen",
       app: 'notepad',
-      spoken: "Notepad is the active window. Document contains 28 words. Caret is at line 2.",
+      spoken: "Screen read complete. Active window is Notepad notes.txt with 4 lines of verified text. Caret at end.",
       action(cb) {
-        setActiveApp('notepad');
-        positionFocusBox('#simNotepadContent');
+        openNotepad();
+        renderUIAInspector('#notepadEditor', {
+          controlType: 'UIA_DocumentControlTypeId',
+          name: 'notes.txt buffer'
+        });
         earcons.success();
+        updateHudStatus('RELAY VOICE OS • NARRATING', 'Describing screen controls via UIAutomationCore...');
         if (cb) cb();
       },
       steps: [
@@ -258,8 +430,12 @@
       app: 'notepad',
       spoken: `It is currently ${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. Battery is at 88 percent. Wi-Fi is connected.`,
       action(cb) {
-        positionFocusBox('#desktopClock');
+        renderUIAInspector('#win11TrayClock', {
+          controlType: 'UIA_ClockControlTypeId',
+          name: 'System Clock'
+        });
         earcons.success();
+        updateHudStatus('RELAY VOICE OS • VERIFIED', 'System time and battery query complete.');
         if (cb) cb();
       },
       steps: [
@@ -272,20 +448,24 @@
     },
     {
       id: 'switch_chrome',
-      text: "switch to Chrome and read the page",
-      app: 'chrome',
-      spoken: "Switched to Chrome. Reading heading: Assistive Tech on Windows 11. Windows UI Automation provides direct structural access to buttons, text fields, and document trees without screenshots.",
+      text: "switch to Edge and read the page",
+      app: 'edge',
+      spoken: "Switched to Microsoft Edge. Reading headline: Relay, Hands-Free Voice OS for Windows 10 & 11. Sub-200ms latency, zero cloud leaks.",
       action(cb) {
-        setActiveApp('chrome');
-        positionFocusBox('#chromeArticleP1');
+        openEdge();
+        updateHudStatus('RELAY VOICE OS • READING WEB', 'Reading Edge article heading & paragraph...');
+        renderUIAInspector('#edgeHeading', {
+          controlType: 'UIA_HeadingControlTypeId',
+          name: 'Repository Headline'
+        });
         earcons.success();
         if (cb) cb();
       },
       steps: [
-        { label: "Speech In", detail: "Transcribed: 'switch to Chrome and read the page'" },
-        { label: "Intent Match", detail: "Compound: [SwitchWindow(Chrome), ReadPage()]" },
-        { label: "UI Automation", detail: "SetForegroundWindow called; Chrome DOM hooked via UIA" },
-        { label: "Verification", detail: "IUIAutomationElement.CurrentName confirms Chrome focus" },
+        { label: "Speech In", detail: "Transcribed: 'switch to Edge and read the page'" },
+        { label: "Intent Match", detail: "Compound: [SwitchWindow(Edge), ReadPage()]" },
+        { label: "UI Automation", detail: "SetForegroundWindow called; Edge DOM hooked via UIA" },
+        { label: "Verification", detail: "IUIAutomationElement.CurrentName confirms Edge focus" },
         { label: "Narration", detail: "Sentence-by-sentence streaming audio playback" }
       ]
     },
@@ -293,24 +473,27 @@
       id: 'bluetooth_toggle',
       text: "turn on Bluetooth",
       app: 'settings',
-      spoken: "Navigated to Windows Settings. Bluetooth is now turned ON. Ready to pair.",
+      spoken: "Navigated to Windows Settings. Bluetooth is now toggled. Ready to pair.",
       action(cb) {
-        setActiveApp('settings');
-        positionFocusBox('#btToggleSwitch');
-        const btn = document.getElementById('btToggleSwitch');
-        if (btn) {
-          btn.textContent = "ON";
-          btn.style.background = "#00C853";
-          btn.style.color = "#ffffff";
-        }
+        openSettings();
+        const sw = document.getElementById('settingsBtSwitch');
+        const st = document.getElementById('settingsBtStatus');
+        if (sw) sw.classList.toggle('on');
+        const isOn = sw && sw.classList.contains('on');
+        if (st) st.textContent = isOn ? 'Discoverable as "WORK-STATION-11" (Enabled)' : 'Bluetooth is turned Off';
+        renderUIAInspector('#settingsBtSwitch', {
+          controlType: 'UIA_TogglePattern',
+          name: isOn ? 'Toggle ON' : 'Toggle OFF'
+        });
         earcons.success();
+        updateHudStatus('RELAY VOICE OS • VERIFIED', `Bluetooth setting state: ${isOn ? 'ON' : 'OFF'}`);
         if (cb) cb();
       },
       steps: [
         { label: "Speech In", detail: "Transcribed: 'turn on Bluetooth'" },
         { label: "Intent Match", detail: "HardwareControl(device='bluetooth', state=True)" },
         { label: "UI Automation", detail: "Invoked UIA TogglePattern on Windows Settings toggle" },
-        { label: "Verification", detail: "Queried ToggleState property: verified ON" },
+        { label: "Verification", detail: "Queried ToggleState property: verified state" },
         { label: "Narration", detail: "Confirmed setting change" }
       ]
     },
@@ -319,12 +502,16 @@
       text: "delete this file",
       app: 'explorer',
       spoken: "Deleting report-draft.docx is irreversible. To proceed, say: confirm delete. A simple yes will not work.",
-      isAlert: true,
       action(cb) {
-        setActiveApp('explorer');
-        positionFocusBox('#explorerSelectedItem');
-        earcons.alert();
+        openExplorer();
         state.pendingConfirmation = 'delete';
+        updateSafetyTier(true);
+        renderUIAInspector('#fileRowReport', {
+          controlType: 'UIA_ListItemControlTypeId',
+          name: 'report-draft.docx [Gated Hold]'
+        });
+        earcons.alert();
+        updateHudStatus('RELAY VOICE OS • GATED HOLD', 'Say "confirm delete" to authorize file deletion');
         logTerminal("SAFETY GATE TRIGGERED: Destructive Tier 5 Action.");
         logTerminal("Awaiting phrase 'confirm delete'. Casual 'yes' rejected.");
         if (cb) cb();
@@ -345,7 +532,8 @@
       action(cb) {
         earcons.halt();
         state.emergencyHalted = true;
-        positionFocusBox(null);
+        renderUIAInspector(null);
+        updateHudStatus('RELAY VOICE OS • EMERGENCY HALT', 'All actions suspended. Say "continue" to resume.');
         logTerminal("EMERGENCY STOP HALT ENGAGED (Ctrl+Alt+Backspace).");
         logTerminal("All worker threads suspended until 'continue' command.");
         if (cb) cb();
@@ -360,75 +548,7 @@
     }
   ];
 
-  // --- 5. WINDOW MANAGEMENT & FOCUS BOX ---
-  function setActiveApp(appKey) {
-    state.activeApp = appKey;
-    const windows = {
-      notepad: document.getElementById('simNotepadWindow'),
-      chrome: document.getElementById('simChromeWindow'),
-      explorer: document.getElementById('simExplorerWindow'),
-      settings: document.getElementById('simSettingsWindow'),
-    };
-    const taskbarIcons = {
-      notepad: document.getElementById('tbNotepad'),
-      chrome: document.getElementById('tbChrome'),
-      explorer: document.getElementById('tbExplorer'),
-      settings: document.getElementById('tbSettings'),
-    };
-
-    Object.keys(windows).forEach((key) => {
-      const win = windows[key];
-      const icon = taskbarIcons[key];
-      if (win) {
-        if (key === appKey) {
-          win.classList.remove('inactive');
-          win.classList.add('active');
-        } else {
-          win.classList.add('inactive');
-          win.classList.remove('active');
-        }
-      }
-      if (icon) {
-        icon.classList.toggle('running', key === appKey);
-      }
-    });
-
-    const activeAppBadge = document.getElementById('currentActiveApp');
-    if (activeAppBadge) activeAppBadge.textContent = appKey.charAt(0).toUpperCase() + appKey.slice(1);
-  }
-
-  function positionFocusBox(targetSelector) {
-    const focusBox = document.getElementById('simFocusBox');
-    const desktop = document.getElementById('simDesktop');
-    if (!focusBox || !desktop) return;
-
-    if (!targetSelector || targetSelector === '#simDesktop') {
-      focusBox.classList.remove('visible');
-      return;
-    }
-
-    const targetEl = document.querySelector(targetSelector);
-    if (!targetEl) {
-      focusBox.classList.remove('visible');
-      return;
-    }
-
-    const dRect = desktop.getBoundingClientRect();
-    const tRect = targetEl.getBoundingClientRect();
-
-    const top = tRect.top - dRect.top;
-    const left = tRect.left - dRect.left;
-    const width = tRect.width;
-    const height = tRect.height;
-
-    focusBox.style.top = `${Math.max(4, top - 4)}px`;
-    focusBox.style.left = `${Math.max(4, left - 4)}px`;
-    focusBox.style.width = `${width + 8}px`;
-    focusBox.style.height = `${height + 8}px`;
-    focusBox.classList.add('visible');
-  }
-
-  // --- 6. PIPELINE STEPPER ANIMATION ---
+  // --- 7. PIPELINE STEPPER ANIMATION ---
   function updatePipelineStepper(steps) {
     const stepper = document.getElementById('pipelineStepper');
     if (!stepper) return;
@@ -464,7 +584,7 @@
     }, 280);
   }
 
-  // --- 7. TERMINAL LOGGING ---
+  // --- 8. TERMINAL LOGGING ---
   function logTerminal(message) {
     const term = document.getElementById('simTerminalLog');
     if (!term) return;
@@ -476,7 +596,7 @@
     term.scrollTop = term.scrollHeight;
   }
 
-  // --- 8. COMMAND DISPATCHER & EXECUTION ---
+  // --- 9. COMMAND DISPATCHER & EXECUTION ---
   function executeCommand(preset) {
     if (state.emergencyHalted && preset.id !== 'continue') {
       logTerminal("BLOCKED: System is in Emergency Stop state. Say 'continue' to resume.");
@@ -487,6 +607,7 @@
     logTerminal(`Voice Input: "${preset.text}"`);
     const speechEl = document.getElementById('simSpeechText');
     if (speechEl) speechEl.textContent = `Processing: "${preset.text}"...`;
+    updateHudStatus('RELAY VOICE OS • PROCESSING', `Executing intent: "${preset.text}"`);
 
     // Render pipeline steps
     updatePipelineStepper(preset.steps);
@@ -505,7 +626,7 @@
     if (!text) return;
 
     // Check emergency stop
-    if (text.includes('emergency stop') || text.includes('halt everything')) {
+    if (text.includes('emergency stop') || text.includes('halt everything') || text.includes('stop all')) {
       const preset = COMMAND_PRESETS.find(p => p.id === 'emergency_stop');
       executeCommand(preset);
       return;
@@ -515,19 +636,23 @@
     if (text === 'continue' || text === 'resume') {
       state.emergencyHalted = false;
       earcons.success();
+      updateHudStatus('RELAY VOICE OS • STANDBY', 'Ready for your next command.');
       logTerminal("EMERGENCY STOP CLEARED. System resumed.");
       speak("Emergency stop cleared. Ready for your next command.");
       return;
     }
 
-    // Check pending confirmation
+    // Check pending confirmation for destructive actions
     if (state.pendingConfirmation === 'delete') {
       if (text.includes('confirm delete')) {
         state.pendingConfirmation = null;
+        updateSafetyTier(false);
         earcons.success();
-        const item = document.getElementById('explorerSelectedItem');
+        const item = document.getElementById('fileRowReport');
         if (item) item.style.display = 'none';
-        logTerminal("[VERIFIED] Confirmed delete matched. report-draft.docx moved to Recycle Bin.");
+        renderUIAInspector(null);
+        updateHudStatus('RELAY VOICE OS • VERIFIED', 'Confirmed delete executed. File removed to Recycle Bin.');
+        logTerminal("[VERIFIED] Phrase 'confirm delete' matched. report-draft.docx moved to Recycle Bin.");
         speak("Confirmed delete received. File moved to Recycle Bin.");
         return;
       } else if (text === 'yes' || text === 'yeah' || text === 'sure') {
@@ -537,7 +662,10 @@
         return;
       } else if (text.includes('cancel') || text.includes('stop')) {
         state.pendingConfirmation = null;
+        updateSafetyTier(false);
         earcons.cancel();
+        renderUIAInspector(null);
+        updateHudStatus('RELAY VOICE OS • STANDBY', 'Deletion cancelled by user.');
         logTerminal("CANCELLED: Deletion cancelled by user.");
         speak("Action cancelled.");
         return;
@@ -548,9 +676,9 @@
     let matched = null;
     if (text.includes('notepad') || text.includes('type') || text.includes('write')) {
       matched = COMMAND_PRESETS.find(p => p.id === 'notepad_write');
-    } else if (text.includes('time') || text.includes('battery') || text.includes('status')) {
+    } else if (text.includes('time') || text.includes('battery') || text.includes('clock') || text.includes('status')) {
       matched = COMMAND_PRESETS.find(p => p.id === 'time_status');
-    } else if (text.includes('chrome') || text.includes('read the page') || text.includes('web')) {
+    } else if (text.includes('edge') || text.includes('chrome') || text.includes('read the page') || text.includes('web') || text.includes('browser')) {
       matched = COMMAND_PRESETS.find(p => p.id === 'switch_chrome');
     } else if (text.includes('bluetooth') || text.includes('settings')) {
       matched = COMMAND_PRESETS.find(p => p.id === 'bluetooth_toggle');
@@ -569,7 +697,7 @@
     }
   }
 
-  // --- 9. WEB SPEECH RECOGNITION (BROWSER MIC IN) ---
+  // --- 10. WEB SPEECH RECOGNITION (BROWSER MIC IN) ---
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   let recognition = null;
 
@@ -590,17 +718,14 @@
       const micBtn = document.getElementById('micTalkBtn');
       if (micBtn) {
         micBtn.classList.add('listening');
-        micBtn.innerHTML = `
-          <span class="mic-pulse-ring"></span>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-          <span>Listening... Speak now</span>
-        `;
       }
+      updateHudStatus('RELAY VOICE OS • LISTENING', 'Listening... speak clearly into microphone');
       logTerminal("Microphone active. Listening for spoken command...");
     };
 
     rec.onresult = (evt) => {
       const transcript = evt.results[0][0].transcript;
+      updateHudStatus('RELAY VOICE OS • TRANSCRIBED', `Heard: "${transcript}"`);
       logTerminal(`Heard: "${transcript}" (Confidence: ${Math.round(evt.results[0][0].confidence * 100)}%)`);
       processNaturalUtterance(transcript);
     };
@@ -608,6 +733,7 @@
     rec.onerror = (err) => {
       console.error("SpeechRecognition error:", err);
       earcons.cancel();
+      updateHudStatus('RELAY VOICE OS • STANDBY', 'Mic error. Click mic or type command below.');
       logTerminal(`SpeechRecognition error: ${err.error}`);
     };
 
@@ -616,21 +742,202 @@
       const micBtn = document.getElementById('micTalkBtn');
       if (micBtn) {
         micBtn.classList.remove('listening');
-        micBtn.innerHTML = `
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
-          <span>Click to Speak (or press Alt+Space)</span>
-        `;
       }
     };
 
     return rec;
   }
 
-  // --- 10. EVENT BINDINGS & DOM WIRING ---
+  // --- 11. WINDOW DRAGGING & CONTROLS ---
+  function makeWindowDraggable(winEl, titlebarEl) {
+    if (!winEl || !titlebarEl) return;
+    let isDragging = false;
+    let startX = 0, startY = 0;
+    let initialLeft = 0, initialTop = 0;
+
+    titlebarEl.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.caption-buttons') || e.target.closest('.win11-tab-close')) return;
+      isDragging = true;
+      bringToFront(winEl);
+      startX = e.clientX;
+      startY = e.clientY;
+      initialLeft = winEl.offsetLeft;
+      initialTop = winEl.offsetTop;
+      e.preventDefault();
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      const desktop = document.getElementById('win11Desktop');
+      const maxLeft = desktop ? (desktop.clientWidth - 120) : 1000;
+      const maxTop = desktop ? (desktop.clientHeight - 80) : 600;
+      winEl.style.left = `${Math.max(0, Math.min(initialLeft + dx, maxLeft))}px`;
+      winEl.style.top = `${Math.max(0, Math.min(initialTop + dy, maxTop))}px`;
+    });
+
+    window.addEventListener('mouseup', () => {
+      isDragging = false;
+    });
+  }
+
+  function setupWindowButtons(winId, minId, maxId, closeId) {
+    const win = document.getElementById(winId);
+    const minBtn = document.getElementById(minId);
+    const maxBtn = document.getElementById(maxId);
+    const closeBtn = document.getElementById(closeId);
+
+    if (minBtn && win) {
+      minBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        win.classList.add('minimized');
+        earcons.click();
+      });
+    }
+    if (maxBtn && win) {
+      maxBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        win.classList.toggle('maximized');
+        earcons.click();
+      });
+    }
+    if (closeBtn && win) {
+      closeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        win.style.display = 'none';
+        win.classList.remove('active');
+        earcons.click();
+      });
+    }
+    if (win) {
+      win.addEventListener('mousedown', () => {
+        bringToFront(win);
+      });
+    }
+  }
+
+  function startLiveClock() {
+    function tick() {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const dateStr = now.toLocaleDateString([], { month: 'numeric', day: 'numeric', year: 'numeric' });
+      const clockTime = document.getElementById('win11ClockTime');
+      const clockDate = document.getElementById('win11ClockDate');
+      if (clockTime) clockTime.textContent = timeStr;
+      if (clockDate) clockDate.textContent = dateStr;
+    }
+    tick();
+    setInterval(tick, 1000);
+  }
+
+  // --- 12. EVENT BINDINGS & DOM WIRING ---
   document.addEventListener('DOMContentLoaded', () => {
     recognition = initSpeechRecognition();
+    startLiveClock();
 
-    // 1. Mic Talk Button
+    // 1. Draggable Windows
+    makeWindowDraggable(document.getElementById('win11Notepad'), document.getElementById('notepadTitlebar'));
+    makeWindowDraggable(document.getElementById('win11Explorer'), document.getElementById('explorerTitlebar'));
+    makeWindowDraggable(document.getElementById('win11Edge'), document.getElementById('edgeTitlebar'));
+    makeWindowDraggable(document.getElementById('win11Settings'), document.getElementById('settingsTitlebar'));
+
+    // 2. Caption Buttons
+    setupWindowButtons('win11Notepad', 'notepadBtnMin', 'notepadBtnMax', 'notepadBtnClose');
+    setupWindowButtons('win11Explorer', 'explorerBtnMin', 'explorerBtnMax', 'explorerBtnClose');
+    setupWindowButtons('win11Edge', 'edgeBtnMin', 'edgeBtnMax', 'edgeBtnClose');
+    setupWindowButtons('win11Settings', 'settingsBtnMin', 'settingsBtnMax', 'settingsBtnClose');
+
+    // 3. Desktop Icons Click Handlers
+    const iconBinds = {
+      dIconNotepad: openNotepad,
+      dIconExplorer: openExplorer,
+      dIconEdge: openEdge,
+      dIconSettings: openSettings,
+      dIconRelay: openNotepad,
+      dIconRecycle: openExplorer,
+    };
+    Object.keys(iconBinds).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          getAudioCtx();
+          earcons.click();
+          iconBinds[id]();
+        });
+      }
+    });
+
+    // 4. Start Menu flyout & items
+    const startBtn = document.getElementById('win11StartBtn');
+    const startMenu = document.getElementById('win11StartMenu');
+    if (startBtn && startMenu) {
+      startBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        startMenu.classList.toggle('open');
+        earcons.click();
+      });
+      document.addEventListener('click', (e) => {
+        if (!startMenu.contains(e.target) && !startBtn.contains(e.target)) {
+          startMenu.classList.remove('open');
+        }
+      });
+    }
+
+    const startItemBinds = {
+      startItemNotepad: openNotepad,
+      startItemExplorer: openExplorer,
+      startItemEdge: openEdge,
+      startItemSettings: openSettings,
+      startItemRelay: openNotepad,
+    };
+    Object.keys(startItemBinds).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (startMenu) startMenu.classList.remove('open');
+          earcons.click();
+          startItemBinds[id]();
+        });
+      }
+    });
+
+    // 5. Taskbar App Items
+    const taskbarBinds = {
+      tbAppNotepad: openNotepad,
+      tbAppExplorer: openExplorer,
+      tbAppEdge: openEdge,
+      tbAppSettings: openSettings,
+    };
+    Object.keys(taskbarBinds).forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.addEventListener('click', (e) => {
+          e.stopPropagation();
+          earcons.click();
+          taskbarBinds[id]();
+        });
+      }
+    });
+
+    // 6. UIA Toggle button
+    const uiaToggle = document.getElementById('hudToggleUia');
+    if (uiaToggle) {
+      uiaToggle.addEventListener('click', () => {
+        state.uiaOverlayEnabled = !state.uiaOverlayEnabled;
+        uiaToggle.classList.toggle('active', state.uiaOverlayEnabled);
+        uiaToggle.textContent = state.uiaOverlayEnabled ? 'UIA: ON' : 'UIA: OFF';
+        const overlay = document.getElementById('uiaInspectorOverlay');
+        if (!state.uiaOverlayEnabled && overlay) {
+          overlay.style.display = 'none';
+        }
+        earcons.click();
+      });
+    }
+
+    // 7. Mic Talk Button
     const micBtn = document.getElementById('micTalkBtn');
     if (micBtn) {
       micBtn.addEventListener('click', (e) => {
@@ -646,7 +953,6 @@
               console.warn("Recognition already started or error:", err);
             }
           } else {
-            // Fallback for browsers without Web Speech (prompt)
             const input = prompt("Web Speech API not enabled in this browser. Enter your command to test Relay simulator:", "open Notepad and write hello world");
             if (input) processNaturalUtterance(input);
           }
@@ -654,27 +960,25 @@
       });
     }
 
-    // 2. Hotkey Alt+Space for Push-to-Talk
+    // 8. Hotkeys
     window.addEventListener('keydown', (e) => {
       if (e.altKey && (e.code === 'Space' || e.key === ' ')) {
         e.preventDefault();
         if (micBtn) micBtn.click();
       }
-      // Emergency stop key: Ctrl+Alt+Backspace
       if (e.ctrlKey && e.altKey && e.key === 'Backspace') {
         e.preventDefault();
         const preset = COMMAND_PRESETS.find(p => p.id === 'emergency_stop');
         if (preset) executeCommand(preset);
       }
-      // Stop speech: Escape or Ctrl+Alt+.
       if (e.key === 'Escape' || (e.ctrlKey && e.altKey && e.key === '.')) {
         stopSpeaking();
         earcons.cancel();
       }
     });
 
-    // 3. Preset Action Pills
-    document.querySelectorAll('.preset-pill-btn').forEach(btn => {
+    // 9. Autonomous Scenario Pills
+    document.querySelectorAll('.preset-pill-btn, .scenario-pill').forEach(btn => {
       btn.addEventListener('click', () => {
         getAudioCtx();
         const presetId = btn.getAttribute('data-preset');
@@ -683,7 +987,7 @@
       });
     });
 
-    // 4. Manual Terminal Input
+    // 10. Manual Terminal Input
     const termInput = document.getElementById('simManualInput');
     const termBtn = document.getElementById('simSendBtn');
     if (termInput && termBtn) {
@@ -701,7 +1005,7 @@
       });
     }
 
-    // 5. Soundboard Buttons
+    // 11. Soundboard Earcon Buttons
     document.querySelectorAll('.earcon-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         getAudioCtx();
@@ -713,7 +1017,7 @@
       });
     });
 
-    // 6. Interactive Jumping Logo Balls
+    // 12. Interactive Jumping Logo Balls
     const BALL_NOTES = {
       ballBlue: 329.63,   // E4
       ballYellow: 392.00, // G4
@@ -769,7 +1073,7 @@
       });
     }
 
-    // 7. Theme Toggle
+    // 13. Theme Toggle
     const themeBtn = document.getElementById('themeToggle');
     if (themeBtn) {
       themeBtn.addEventListener('click', () => {
@@ -780,23 +1084,9 @@
       });
     }
 
-    // 8. Taskbar click handlers
-    ['tbNotepad', 'tbChrome', 'tbExplorer', 'tbSettings'].forEach(id => {
-      const el = document.getElementById(id);
-      if (el) {
-        el.addEventListener('click', () => {
-          const app = id.replace('tb', '').toLowerCase();
-          setActiveApp(app);
-          earcons.click();
-          logTerminal(`User switched active app to ${app.toUpperCase()} via taskbar`);
-        });
-      }
-    });
-
-    // Initial setup
-    setActiveApp('notepad');
-    positionFocusBox('#simNotepadContent');
-    logTerminal("RELAY Browser Simulator initialized. Web Audio & Speech ready.");
+    // Initial launch: Notepad active
+    openNotepad();
+    logTerminal("RELAY Windows 11 Desktop Replica initialized. UI Automation active.");
   });
 
 })();
